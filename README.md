@@ -14,7 +14,7 @@ The project's been tested on SDK 2013 SP (main focus) and MP. Works in both, but
 
 ![hl2 2024-03-28 20-07-57-148](https://github.com/Cvoxalury/sdk2013-custom-loading-screens/assets/5245025/aea20925-5e4d-4b09-9065-63eeee5b6d7c)
 
-**II. Funcionality**
+**II. Functionality**
 
 The loading screen works as a VGUI element that replaces the basic loading screen and its tied elements (such as the progress bar), done in clientmode_shared.cpp. 
 
