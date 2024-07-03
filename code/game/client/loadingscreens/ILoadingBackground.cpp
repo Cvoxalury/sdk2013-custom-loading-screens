@@ -12,7 +12,7 @@
 #include "cbase.h"
 #include "ILoadingBackground.h"
 #include "GameUI/IGameUI.h"
-#include "vgui\ILocalize.h"
+#include "vgui/ILocalize.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -353,8 +353,8 @@ void CMapLoadBG::OnThink(void)
 
 		if (m_pProgressPercentage)
 		{
-			char percentage[10];
-			itoa((int)100 * progress, percentage, 10);
+		char percentage[10]; //itoa does not exist in gcc so it needs to be replaced with Q_snprintf
+		Q_snprintf(percentage, ARRAYSIZE(percentage), "%i",(int)(100 * progress));
 			m_pProgressPercentage->SetText(percentage);
 			m_pProgressPercentage->SizeToContents();
 		}
