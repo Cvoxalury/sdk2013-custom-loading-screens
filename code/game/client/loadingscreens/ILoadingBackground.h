@@ -11,13 +11,13 @@
 #pragma once
 #endif
 
-#include "vgui\ISurface.h"
-#include "vgui\IVGui.h"
-#include <vgui_controls\EditablePanel.h>
-#include <vgui_controls\ImagePanel.h>
-#include <vgui_controls\ProgressBar.h>
-#include "vgui_controls\CircularProgressBar.h"
-#include <vgui_controls\Label.h>
+#include "vgui/ISurface.h"
+#include "vgui/IVGui.h"
+#include <vgui_controls/EditablePanel.h>
+#include <vgui_controls/ImagePanel.h>
+#include <vgui_controls/ProgressBar.h>
+#include "vgui_controls/CircularProgressBar.h"
+#include <vgui_controls/Label.h>
 #include "ienginevgui.h"
 #include <KeyValues.h>
 
