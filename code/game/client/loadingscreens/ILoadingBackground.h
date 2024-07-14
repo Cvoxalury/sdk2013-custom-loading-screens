@@ -1,6 +1,6 @@
-//======= Maestra Fenix, 2017 ==================================================//
+//======= Maestra Fenix, 2024 ==================================================//
+//======= Obsidian Conflict Team, 2024 =========================================//
 //======= Cvoxalury, 2024 ======================================================//
-//
 // Purpose: Map load background panel
 //
 //==============================================================================//
@@ -20,7 +20,12 @@
 #include <vgui_controls/Label.h>
 #include "ienginevgui.h"
 #include <KeyValues.h>
-
+// OC Team code
+#include <string>
+#include <vector>
+#include <unordered_map>
+#include "filesystem.h"
+//
 #define ENABLE_LOADING_TIP // if defined, adds an element for tip text
 #define ENABLE_CUSTOM_LOADING_BAR // if defined, overrides the loading bar, hides the original one
 #define ENABLE_CUSTOM_LOADING_WHEEL // if defined, a circular progress bar will appear in bottom right corner
@@ -33,9 +38,18 @@ class CMapLoadBG : public vgui::EditablePanel
 	DECLARE_CLASS_SIMPLE(CMapLoadBG, vgui::EditablePanel);
 public:
 
+	// OC
+	using string_list_t = std::vector<std::string>;
+	using string_image_list_t = std::unordered_map<std::string, string_list_t>;
+	//
 	// Construction
 	CMapLoadBG(char const *panelName);
 	~CMapLoadBG();
+	
+	// OC
+	void SetMap(const std::string &sMap = "");
+	void Reset();
+	//
 
 	bool FindLoadingDialogBarHandle(void);
 	int iLoadingBarHandle;
@@ -44,16 +58,11 @@ public:
 	void OnMessage(const KeyValues *params, vgui::VPANEL fromPanel);
 	void OnThink(void);
 
-	void SetNewBackgroundImage(char const *imageName);
-
 protected:
 	void ApplySchemeSettings(vgui::IScheme *pScheme);
 
 private:
-	void SelectDefaultBackground(void);
-	void SelectSpecificBackground(void);
 	vgui::ImagePanel *m_pBackground;
-	bool m_bResetBackground; // used to know to reset background to default after choosing a map-specific one, so it doesn't persist.
 #ifdef ENABLE_CUSTOM_LOADING_BAR
 	vgui::ContinuousProgressBar	*m_pProgressBar;
 	vgui::Label *m_pProgressPercentage;
@@ -63,10 +72,16 @@ private:
 #endif
 #ifdef ENABLE_LOADING_TIP
 	vgui::Label *m_pLoadingTip;
+	// OC
+	int iNumberTips; 
+	//
 #endif
 #ifdef ENABLE_CUSTOM_LOADING_WHEEL
 	vgui::CircularProgressBar *m_pProgressWheel;
 #endif
+	// OC
+	string_image_list_t m_hImages;
+	//
 };
 
 /*

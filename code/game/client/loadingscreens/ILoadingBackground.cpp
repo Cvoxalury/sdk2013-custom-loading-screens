@@ -1,9 +1,10 @@
-//======= Maestra Fenix, 2017 ==================================================//
+//======= Maestra Fenix, 2024 ==================================================//
+//======= Obsidian Conflict Team, 2024 =========================================//
 //======= Cvoxalury, 2024 ======================================================//
 //
 // Purpose: Map load background panel
 // Todo: The MP side of things. Secondary bar for when external files are needed,
-// status text related to that, statis text for the first bar (connecting, etc)...
+// status text related to that, status text for the first bar (connecting, etc)...
 // The secondary bar in vanilla appears to be called "Progress2", but I don't
 // know how to extract its text messages, and I don't have the ability to
 // test downloading external files to verify its working.
@@ -25,14 +26,60 @@ CMapLoadBG::CMapLoadBG(char const *panelName) : EditablePanel(NULL, panelName)
 {
 	VPANEL toolParent = enginevgui->GetPanel(PANEL_GAMEUIDLL);
 	SetParent(toolParent);
+	// OC Team Code
+	std::string sImagePath = "materials" CORRECT_PATH_SEPARATOR_S "vgui" CORRECT_PATH_SEPARATOR_S "loading" CORRECT_PATH_SEPARATOR_S;
 
+	FileFindHandle_t hImage = FILESYSTEM_INVALID_FIND_HANDLE;
+
+	m_hImages["_"] = string_list_t();
+	for (
+		const char* sName = g_pFullFileSystem->FindFirstEx((sImagePath + "*.vmt").c_str(), "MOD", &hImage);
+		sName;
+		sName = g_pFullFileSystem->FindNext(hImage)
+		)
+	{
+		if (sName[0] != '.')
+		{
+			std::string sImage = sName;
+			sImage = sImage.substr(0, sImage.length() - 4);
+
+			m_hImages["_"].push_back("loading/" + sImage);
+		}
+	}
+
+	g_pFullFileSystem->FindClose(hImage);
+	hImage = FILESYSTEM_INVALID_FIND_HANDLE;
+
+	for (
+		const char* sName = g_pFullFileSystem->FindFirstEx((sImagePath + "maps" + CORRECT_PATH_SEPARATOR_S + "*.vmt").c_str(), "MOD", &hImage);
+		sName;
+		sName = g_pFullFileSystem->FindNext(hImage)
+		)
+	{
+		if (sName[0] != '.')
+		{
+			std::string sImage = sName;
+			sImage = sImage.substr(0, sImage.length() - 4);
+
+			// ToDo: find method to get base map name, preferably a common one so we end up with one list per category
+			// ex: GetChapterForMap( sImage ) == "route_kanal"; // sImage == "d1_canals_01"
+			std::string sCategory = sImage;
+
+			if (!m_hImages.count(sCategory)) m_hImages[sCategory] = string_list_t();
+
+			m_hImages[sCategory].push_back("loading/maps/" + sImage);
+		}
+	}
+
+	g_pFullFileSystem->FindClose(hImage);
+	//
 	m_pBackground = new ImagePanel(this, "Background");
 
 	if (m_pBackground)
 	{
 		m_pBackground->SetSize(ScreenWidth(), ScreenHeight());
 		m_pBackground->SetShouldScaleImage(true);
-		m_pBackground->SetImage("loading/_default");
+		Reset();
 	}
 
 #ifdef ENABLE_CUSTOM_LOADING_BAR
@@ -54,13 +101,23 @@ CMapLoadBG::CMapLoadBG(char const *panelName) : EditablePanel(NULL, panelName)
 #endif
 
 #ifdef ENABLE_LOADING_TIP
-	m_pLoadingTip = new vgui::Label(this, "LoadingTip", " ");
+	m_pLoadingTip = new vgui::Label(this, "LoadingTip", " ");	
+	// OC
+	iNumberTips = 0;
+	
+	//Fenix: This scans through all loaded strings of the mod. It's fast, but perhaps it could be even faster if we could tell it where exactly to look?
+	for (int i = g_pVGuiLocalize->GetFirstStringIndex(); i != INVALID_LOCALIZE_STRING_INDEX; i = g_pVGuiLocalize->GetNextStringIndex(i))
+	{
+		const char *strName = g_pVGuiLocalize->GetNameByIndex(i);
+
+		if (V_strncmp("loadingscreen_Tip_", strName, 18) == 0)
+			iNumberTips++;
+	}
+	//
 #endif
 
 	progress = 0;
 	iLoadingBarHandle = 0;
-	mapBackground = NULL;
-	m_bResetBackground = true;
 
 	LoadControlSettings("resource/ui/loadingscreen.res");
 }
@@ -69,14 +126,53 @@ CMapLoadBG::~CMapLoadBG()
 {
 	// None
 }
+// OC Team code
+//-----------------------------------------------------------------------------
+// Purpose: Loads a random default or a map defined loading screen texture.
+//-----------------------------------------------------------------------------
+void CMapLoadBG::SetMap(const std::string& sMap)
+{
+	std::string sCurrentImage = (m_pBackground->GetImageName() ? m_pBackground->GetImageName() : "");
 
+	if (!sMap.empty())
+	{
+		// ToDo: map category: sCategory = GetChapterForMap( sMap );
+		std::string sCategory = sMap;
+
+		if (sCurrentImage.find(sCategory) != std::string::npos) return;
+
+		for (const auto &itImageCategory : m_hImages)
+		{
+			if (!std::equal(sCategory.begin(), sCategory.end(), itImageCategory.first.begin())) continue;
+
+			return m_pBackground->SetImage(itImageCategory.second[random->RandomInt(0, itImageCategory.second.size() - 1)].c_str());
+		}
+
+		// Note: optimization, don't bother setting a default image when we already have one, excluding the default fallback ("loading/default" == 15 chars)
+		// Note: this effectively makes the random default background be chosen once per session, it will persist
+		// across map loads unless a map-specific one overrides it.
+		if (sCurrentImage.find("loading/default") != std::string::npos && sCurrentImage.length() > 15) return;
+		return m_pBackground->SetImage(m_hImages["_"][random->RandomInt(0, m_hImages["_"].size() - 1)].c_str());
+	}
+
+	return m_pBackground->SetImage("loading/default");
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CMapLoadBG::Reset()
+{
+	SetMap();
+}
+//
 void CMapLoadBG::ApplySchemeSettings(IScheme *pScheme)
 {
+	// OC
+	BaseClass::ApplySchemeSettings(pScheme);
+	SetBounds(0, 0, ScreenWidth(), ScreenHeight());
+	//
 	IScheme *pClientScheme = vgui::scheme()->GetIScheme(vgui::scheme()->GetScheme("ClientScheme"));
-
-	int iWide, iTall;
-	surface()->GetScreenSize(iWide, iTall);
-	SetSize(iWide, iTall);
 
 #ifdef ENABLE_CUSTOM_LOADING_BAR
 
@@ -84,14 +180,14 @@ void CMapLoadBG::ApplySchemeSettings(IScheme *pScheme)
 	{
 		m_pProgressBar->SetAlpha(100);
 		m_pProgressBar->SetPaintBorderEnabled(false);
-		m_pProgressBar->SetSize(max(256, iWide * 0.66f), max(8, (iTall / 100)));
-		m_pProgressBar->SetPos(iWide / 6, iTall * 0.9f);
+		m_pProgressBar->SetSize(max(256, ScreenWidth() * 0.66f), max(8, (ScreenHeight() / 100)));
+		m_pProgressBar->SetPos(ScreenWidth() / 6, ScreenHeight() * 0.9f);
 
 		if (m_pProgressPercentage)
 		{
 			m_pProgressPercentage->SetFont(pClientScheme->GetFont("Default", true));
 			m_pProgressPercentage->SetSize(32, 32);
-			m_pProgressPercentage->SetPos(iWide / 6 + m_pProgressBar->GetWide() + m_pProgressPercentage->GetWide() / 2, (iTall * 0.9f) - m_pProgressBar->GetTall() / 2);
+			m_pProgressPercentage->SetPos(ScreenWidth() / 6 + m_pProgressBar->GetWide() + m_pProgressPercentage->GetWide() / 2, (ScreenHeight() * 0.9f) - m_pProgressBar->GetTall() / 2);
 			m_pProgressPercentage->SetContentAlignment(vgui::Label::a_southwest);
 		}
 //#if HL2MP
@@ -99,7 +195,7 @@ void CMapLoadBG::ApplySchemeSettings(IScheme *pScheme)
 //		{
 //			m_pProgressStatusMessage->SetFont(pClientScheme->GetFont("Default", true));
 //			m_pProgressStatusMessage->SetSize(32, 32);
-//			m_pProgressStatusMessage->SetPos(iWide / 2 - m_pProgressStatusMessage->GetWide() / 2, iTall * 0.95);
+//			m_pProgressStatusMessage->SetPos(ScreenWidth() / 2 - m_pProgressStatusMessage->GetWide() / 2, ScreenHeight() * 0.95);
 //			m_pProgressStatusMessage->SetContentAlignment(vgui::Label::a_southwest);
 //		}
 //#endif
@@ -110,10 +206,10 @@ void CMapLoadBG::ApplySchemeSettings(IScheme *pScheme)
 	{
 		m_pProgressWheel->SetAlpha(100);
 		m_pProgressWheel->SetPaintBorderEnabled(false);
-		m_pProgressWheel->SetSize(min(64, iWide * 0.1), min(64, iWide * 0.1));
-		m_pProgressWheel->SetPos((iWide)-(m_pProgressWheel->GetWide() * 1.5f), (iTall)-(m_pProgressWheel->GetTall() * 1.5f));
-		m_pProgressWheel->SetBgImage("loading/loading_wheel_bg");
-		m_pProgressWheel->SetFgImage("loading/loading_wheel_fg");
+		m_pProgressWheel->SetSize(min(64, ScreenWidth() * 0.1), min(64, ScreenWidth() * 0.1));
+		m_pProgressWheel->SetPos((ScreenWidth())-(m_pProgressWheel->GetWide() * 1.5f), (ScreenHeight())-(m_pProgressWheel->GetTall() * 1.5f));
+		m_pProgressWheel->SetBgImage("loading/ui/loading_wheel_bg");
+		m_pProgressWheel->SetFgImage("loading/ui/loading_wheel_fg");
 	}
 #endif
 
@@ -123,11 +219,9 @@ void CMapLoadBG::ApplySchemeSettings(IScheme *pScheme)
 		m_pLoadingTip->SetFont(pClientScheme->GetFont("Default", true));
 		m_pLoadingTip->SetContentAlignment(vgui::Label::a_center);
 		m_pLoadingTip->SizeToContents();
-		m_pLoadingTip->SetPos(iWide / 2 - m_pLoadingTip->GetWide() / 2, iTall * 0.85f);
+		m_pLoadingTip->SetPos(ScreenWidth() / 2 - m_pLoadingTip->GetWide() / 2, ScreenHeight() * 0.85f);
 	}
 #endif
-
-	BaseClass::ApplySchemeSettings(pScheme);
 }
 
 //-----------------------------------------------------------------------------
@@ -214,69 +308,6 @@ bool CMapLoadBG::FindLoadingDialogBarHandle(void)
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: Scans through the vgui/loading materials folder and picks a random
-// valid background (if any exist). Called both on activation and if a
-// map-specific background can't be found.
-//-----------------------------------------------------------------------------
-void CMapLoadBG::SelectDefaultBackground(void)
-{
-#ifdef _WIN32
-	char textureName[32];
-#else	// !_WIN32
-	char textureName[32];
-#endif	// _WIN32
-
-	int iValidMaterials = -1;
-
-	for (int i = 0; i < 99; i++) // count the valid vmts up to a max of a hundred of them
-	{
-		Q_snprintf(textureName, sizeof(textureName), "vgui/loading/default%i", i);
-
-		mapBackground = materials->FindMaterial(textureName, TEXTURE_GROUP_OTHER, false);
-		if (mapBackground && !mapBackground->IsErrorMaterial())
-		{
-			iValidMaterials++;
-		}
-	}
-
-	if (iValidMaterials > -1)
-	{
-		Q_snprintf(textureName, sizeof(textureName), "loading/default%i", RandomInt(0, iValidMaterials));
-		SetNewBackgroundImage(textureName);
-
-		m_bResetBackground = false;
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Based on the loading level name, find a vmt to replace one of the
-// default loading screen textures.
-//-----------------------------------------------------------------------------
-void CMapLoadBG::SelectSpecificBackground(void)
-{
-#ifdef _WIN32
-	char mapFilename[MAX_PATH];
-	char textureName[MAX_PATH];
-#else	// !_WIN32
-	char mapFilename[PATH_MAX];
-	char textureName[PATH_MAX];
-#endif	// _WIN32
-
-	Q_FileBase(engine->GetLevelName(), mapFilename, sizeof(mapFilename));
-
-	Q_snprintf(textureName, sizeof(textureName), "vgui/loading/%s", mapFilename);
-
-	mapBackground = materials->FindMaterial(textureName, TEXTURE_GROUP_OTHER, false);
-
-	if (mapBackground && !mapBackground->IsErrorMaterial())
-	{
-		Q_snprintf(textureName, sizeof(textureName), "loading/%s", mapFilename);
-		SetNewBackgroundImage(textureName);
-		m_bResetBackground = true; // this will matter on next map load when we'll want to re-pick a default background.
-	}
-}
-
-//-----------------------------------------------------------------------------
 // Purpose: Catch the activation message to choose one of random default 
 // loading screens (this is guaranteed to happen before we know the name of the
 // map we're loading, as that info cannot be made readily available, and we
@@ -284,17 +315,12 @@ void CMapLoadBG::SelectSpecificBackground(void)
 //-----------------------------------------------------------------------------
 void CMapLoadBG::OnMessage(const KeyValues *params, VPANEL fromPanel)
 {
-	if (!Q_strcmp(params->GetName(), "Activate"))
-	{
-		SelectDefaultBackground();
-	}
-
 #ifdef ENABLE_LOADING_TIP
 	if (m_pLoadingTip)
 	{
 		char tipText[256];
 
-		Q_snprintf(tipText, sizeof(tipText), "#loadingscreen_Tip_%i", RandomInt(1, 32)); // FIXME: this can be avoided if we can just enum all the valid strings instead of (1, 32) ... but is that possible?
+		Q_snprintf(tipText, sizeof(tipText), "#loadingscreen_Tip_%i", RandomInt(1, iNumberTips)); // OC
 		if (g_pVGuiLocalize->Find(tipText))
 		{
 			m_pLoadingTip->SetText(tipText);
@@ -315,15 +341,7 @@ void CMapLoadBG::OnMessage(const KeyValues *params, VPANEL fromPanel)
 
 void CMapLoadBG::OnThink(void)
 {
-	if (Q_strcmp(engine->GetLevelName(), "\0"))
-	{
-		SelectSpecificBackground();
-	}
-	else
-	{
-		if (m_bResetBackground)
-			SelectDefaultBackground();
-	}
+	BaseClass::OnThink();
 
 	if (FindLoadingDialogBarHandle())
 	{
@@ -377,14 +395,16 @@ void CMapLoadBG::OnThink(void)
 		m_pProgressWheel->SetProgress(progress);
 	}
 #endif
-	
-	BaseClass::OnThink();
-}
+	// OC Team code
+	static std::string sMap = UTIL_GetCurrentMap();
 
-//-----------------------------------------------------------------------------
-// Purpose: Sets a new background on demand
-//-----------------------------------------------------------------------------
-void CMapLoadBG::SetNewBackgroundImage(char const *imageName)
-{
-	m_pBackground->SetImage(imageName);
+	std::string sCurrentMap = UTIL_GetCurrentMap();
+	if (sMap == sCurrentMap) return;
+	else sMap = sCurrentMap;
+
+	sCurrentMap = V_GetFileName(sCurrentMap.c_str());
+	if (sCurrentMap.find(".bsp") != std::string::npos) sCurrentMap = sCurrentMap.substr(0, sCurrentMap.length() - 4);
+
+	SetMap(sCurrentMap);
+	//
 }
